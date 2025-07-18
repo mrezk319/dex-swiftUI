@@ -7,79 +7,144 @@
 
 import SwiftUI
 import CoreData
-
+ 
 struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
-
+    let fetcher = FetchPockemon()
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
-
+        sortDescriptors: [SortDescriptor(\Pockemon.id)],
+        animation: .default
+    ) private var pockemons: FetchedResults<Pockemon>
+    
+    @State private var searchText: String = ""
+    @State private var showFavourite: Bool = false
+    
+    private var dynamicPredicate : NSPredicate {
+        var predicates: [NSPredicate] = []
+        if !searchText.isEmpty {
+            predicates.append(NSPredicate(format: "name contains[c] %@", searchText))
+        }
+        
+        if showFavourite {
+            predicates.append(NSPredicate(format: "favourite == true"))
+        }
+        
+        return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+    }
+    
     var body: some View {
-        NavigationView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
+            NavigationStack {
+                List {Section{
+                    ForEach(pockemons) { pockemon in
+                        NavigationLink (value: pockemon) {
+                            HStack{
+                                AsyncImage(url: pockemon.sprite) { image in
+                                    
+                                    image.resizable()
+                                        .scaledToFit()
+                                    
+                                } placeholder: {
+                                    ProgressView()
+                                }
+                                .frame(width: 100, height: 100)
+                                
+                                VStack (alignment: .leading){
+                                    Text(pockemon.name!.capitalized)
+                                        .bold()
+                                    HStack {
+                                        ForEach(pockemon.types ?? ["None"], id: \.self) { element in
+                                            Text(element)
+                                                .padding(.horizontal,10)
+                                                .padding(.vertical,4)
+                                                .background(Color(element.capitalized))
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+                                }
+                                if pockemon.favourite {
+                                    Spacer()
+                                    Image(systemName: "star.fill")
+                                }
+                                
+                            }
+                        }
+                    }
+                } footer:{
+                    if pockemons.count < 100 {
+                        ContentUnavailableView {
+                            Label("Content unavailable", image: .nopokemon)
+                        }description: {
+                            Text("There are not any pokemons\nPlease try again later")
+                        }
+                        actions: {
+                            Button("Reload") {
+                                fetchPockemon()
+                            }
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                .searchable(text: $searchText, prompt:"Find a pokemon")
+                .autocorrectionDisabled()
+                .onChange(of: searchText,{
+                    pockemons.nsPredicate = dynamicPredicate
+                })
+                .onChange(of: showFavourite, {
+                    pockemons.nsPredicate = dynamicPredicate
+                })
+                .navigationTitle("Pokedex")
+                .navigationDestination(for: Pockemon.self, destination: { pockemon in
+                    Text("Pockemons at \(pockemon.id)")
+                })
+                .toolbar {
+                    ToolbarItem {
+                        Button{
+                            showFavourite.toggle()
+                        }label: {
+                            Label("Filter stared item", systemImage: showFavourite ? "star.fill":"star")
+                        }
                     }
                 }
             }
-            Text("Select an item")
-        }
+             
     }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+    
+    func fetchPockemon() {
+        Task {
+            for i in 1...152 {
+                do {
+                    let newPok = try await fetcher.fetch(id: i)
+                    let pokemon = Pockemon(context: viewContext)
+                    pokemon.id = Int16(newPok.id)
+                    pokemon.types = newPok.types.map({$0.type.name})
+                    pokemon.name = newPok.name
+                    pokemon.attack = Int16(newPok.stats[1].baseStat)
+                    pokemon.hp = Int16(newPok.stats[0].baseStat)
+                    pokemon.defence = Int16(newPok.stats[2].baseStat)
+                    pokemon.specialAttack = Int16(newPok.stats[3].baseStat)
+                    pokemon.specialDefence = Int16(newPok.stats[4].baseStat)
+                    pokemon.speed = Int16(newPok.stats[5].baseStat)
+                    pokemon.shiny = URL(string: newPok.sprites.frontShiny.isEmpty ? "" : newPok.sprites.frontShiny)
+                    pokemon.sprite = URL(string: newPok.sprites.backShiny.isEmpty ? "" : newPok.sprites.backShiny)
+                    if newPok.id % 2 == 0 {
+                        pokemon.favourite = true
+                    }
+                    try? viewContext.save()
+                }
+                catch {
+                    print(error.localizedDescription)
+                }
             }
         }
     }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
-    }
+    private let itemFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .medium
+        return formatter
+    }()
+    
 }
-
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
 
 #Preview {
     ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
