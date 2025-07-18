@@ -14,6 +14,10 @@ struct ContentView: View {
     @FetchRequest(
         sortDescriptors: [SortDescriptor(\Pockemon.id)],
         animation: .default
+    ) private var allPockemons: FetchedResults<Pockemon>
+    @FetchRequest(
+        sortDescriptors: [SortDescriptor(\Pockemon.id)],
+        animation: .default
     ) private var pockemons: FetchedResults<Pockemon>
     
     @State private var searchText: String = ""
@@ -68,9 +72,24 @@ struct ContentView: View {
                                 
                             }
                         }
+                        .swipeActions (edge: .leading, allowsFullSwipe: true){
+                             Button(action: {
+                                pockemon.favourite.toggle()
+                                 do {
+                                     try viewContext.save()
+                                 } catch {
+                                     print(error)
+                                 }
+                            }) {
+                                Image(systemName: pockemon.favourite ? "star" : "star.fill")
+                            }
+                            .tint(
+                                pockemon.favourite ? .gray : .yellow
+                            )
+                        }
                     }
                 } footer:{
-                    if pockemons.count < 100 {
+                    if allPockemons.count < 100 {
                         ContentUnavailableView {
                             Label("Content unavailable", image: .nopokemon)
                         }description: {
