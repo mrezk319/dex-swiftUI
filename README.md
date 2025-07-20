@@ -14,7 +14,7 @@ Dex is a beautifully designed Pokémon catalog app built entirely using **SwiftU
 - 📦 Simple architecture using `Observable`, `TimelineEntry`, and SwiftUI `ViewBuilder`
 - 🧩 WidgetKit extension with support for:
   - Small, medium, and large widgets
-- 
+    
 ## 🛠️ Tech Stack
 
 - **Swift 6**
