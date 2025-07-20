@@ -10,11 +10,11 @@ import SwiftUI
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), emoji: "😀")
+        SimpleEntry.placeholder
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let entry = SimpleEntry(date: Date(), emoji: "😀")
+        let entry = SimpleEntry.placeholder
         completion(entry)
     }
 
@@ -22,10 +22,8 @@ struct Provider: TimelineProvider {
         var entries: [SimpleEntry] = []
 
         // Generate a timeline consisting of five entries an hour apart, starting from the current date.
-        let currentDate = Date()
         for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            let entry = SimpleEntry(date: entryDate, emoji: "😀")
+            let entry =  SimpleEntry.placeholder
             entries.append(entry)
         }
 
@@ -40,19 +38,55 @@ struct Provider: TimelineProvider {
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
-    let emoji: String
+    let name:String
+    let sprite: Image
+    let types: [String]
+    static var placeholder: SimpleEntry {
+        SimpleEntry(date: .now, name: "balbasaur", sprite: Image(.bulbasaur), types: ["fire", "grass"])
+    }
+    static var placeholder2: SimpleEntry {
+        SimpleEntry(date: .now, name: "firedragon", sprite: Image(.firedragon), types: ["fire"])
+    }
 }
 
 struct DexWidgetExtensionEntryView : View {
     var entry: Provider.Entry
-
+    @Environment(\.widgetFamily) var family
+    
+    var types: some View {
+        HStack {
+            ForEach(entry.types, id: \.self) { element in
+                Text(element)
+                    .padding(.horizontal,20)
+                    .padding(.vertical,4)
+                    .background(Color(element.capitalized))
+                    .clipShape(Capsule())
+                    .shadow(radius: 10)
+            }
+        }
+    }
     var body: some View {
-        VStack {
-            Text("Time:")
-            Text(entry.date, style: .time)
-
-            Text("Emoji:")
-            Text(entry.emoji)
+        if family == .systemLarge {
+            Text(entry.name.capitalized)
+                .font(.title3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        HStack {
+            entry.sprite
+                .resizable()
+                .scaledToFit()
+            if family == .systemMedium {
+                VStack {
+                    Text(entry.name.capitalized)
+                        .font(.title3)
+                    types
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        if family == .systemLarge {
+            types
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 }
@@ -64,21 +98,37 @@ struct DexWidgetExtension: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             if #available(iOS 17.0, *) {
                 DexWidgetExtensionEntryView(entry: entry)
-                    .containerBackground(.fill.tertiary, for: .widget)
+                    .foregroundStyle(.black )
+                    .containerBackground(Color(entry.types[0].capitalized), for: .widget)
             } else {
                 DexWidgetExtensionEntryView(entry: entry)
                     .padding()
                     .background()
             }
         }
-        .configurationDisplayName("My Widget")
-        .description("This is an example widget.")
+        .configurationDisplayName("Pokemon")
+        .description("See a random pokemon")
     }
 }
 
 #Preview(as: .systemSmall) {
     DexWidgetExtension()
 } timeline: {
-    SimpleEntry(date: .now, emoji: "😀")
-    SimpleEntry(date: .now, emoji: "🤩")
+    SimpleEntry.placeholder
+    SimpleEntry.placeholder2
 }
+
+#Preview(as: .systemMedium) {
+    DexWidgetExtension()
+} timeline: {
+    SimpleEntry.placeholder
+    SimpleEntry.placeholder2
+}
+
+#Preview(as: .systemLarge) {
+    DexWidgetExtension()
+} timeline: {
+    SimpleEntry.placeholder
+    SimpleEntry.placeholder2
+}
+

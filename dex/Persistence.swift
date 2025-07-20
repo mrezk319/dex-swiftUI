@@ -10,7 +10,16 @@ import CoreData
 struct PersistenceController {
     static let shared = PersistenceController()
 
-    @MainActor
+    static var previewPokemon: Pockemon {
+        let context = PersistenceController.preview.container.viewContext
+        let fetchRequest : NSFetchRequest<Pockemon> = Pockemon.fetchRequest()
+        fetchRequest.fetchLimit = 2
+        do {
+            return try context.fetch(fetchRequest).last!
+        } catch {
+            fatalError("Failed to fetch preview Pokemon: \(error)")
+        }
+    }
     static let preview: PersistenceController = {
         let result = PersistenceController(inMemory: true)
         let viewContext = result.container.viewContext
@@ -18,8 +27,8 @@ struct PersistenceController {
             newPockemon.id = 1;
             newPockemon.name = "TestPokemon"
             newPockemon.favourite = true
-            newPockemon.sprite = URL(string: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/2.png")
-            newPockemon.shiny = URL(string: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/shiny/4.png")
+            newPockemon.spriteURL = URL(string: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/2.png")
+            newPockemon.shinyURL = URL(string: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/shiny/4.png")
             newPockemon.attack = 40
             newPockemon.defence = 40
             newPockemon.speed = 40
@@ -34,7 +43,7 @@ struct PersistenceController {
         }
         return result
     }()
-
+    
     let container: NSPersistentContainer
 
     init(inMemory: Bool = false) {
